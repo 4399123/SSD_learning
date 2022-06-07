@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import torch
+import numpy as np
 
 
 def point_form(boxes):
@@ -225,68 +226,68 @@ def nms(bboxes, scores, threshold=0.2, top_k=200):  #bboxes维度为[N,4],scores
             break
         order=order[ids+1]           #ids中索引为0的值在order中实际为1，后面所有的元素也一样，新的order是经过了一轮计算后留下来的bbox的索引
     return torch.tensor(keep,dtype=torch.long),count
-# def nms(boxes, scores, overlap=0.5, top_k=200):
-#     """Apply non-maximum suppression at test time to avoid detecting too many
-#     overlapping bounding boxes for a given object.
-#     Args:
-#         boxes: (tensor) The location preds for the img, Shape: [num_priors,4].
-#         scores: (tensor) The class predscores for the img, Shape:[num_priors].
-#         overlap: (float) The overlap thresh for suppressing unnecessary boxes.
-#         top_k: (int) The Maximum number of box preds to consider.
-#     Return:
-#         The indices of the kept boxes with respect to num_priors.
-#     """
-#
-#     keep = scores.new(scores.size(0)).zero_().long()
-#     if boxes.numel() == 0:
-#         return keep
-#     x1 = boxes[:, 0]
-#     y1 = boxes[:, 1]
-#     x2 = boxes[:, 2]
-#     y2 = boxes[:, 3]
-#     area = torch.mul(x2 - x1, y2 - y1)
-#     v, idx = scores.sort(0)  # sort in ascending order
-#     # I = I[v >= 0.01]
-#     idx = idx[-top_k:]  # indices of the top-k largest vals
-#     xx1 = boxes.new()
-#     yy1 = boxes.new()
-#     xx2 = boxes.new()
-#     yy2 = boxes.new()
-#     w = boxes.new()
-#     h = boxes.new()
-#
-#     # keep = torch.Tensor()
-#     count = 0
-#     while idx.numel() > 0:
-#         i = idx[-1]  # index of current largest val
-#         # keep.append(i)
-#         keep[count] = i
-#         count += 1
-#         if idx.size(0) == 1:
-#             break
-#         idx = idx[:-1]  # remove kept element from view
-#         # load bboxes of next highest vals
-#         torch.index_select(x1, 0, idx, out=xx1)
-#         torch.index_select(y1, 0, idx, out=yy1)
-#         torch.index_select(x2, 0, idx, out=xx2)
-#         torch.index_select(y2, 0, idx, out=yy2)
-#         # store element-wise max with next highest score
-#         xx1 = torch.clamp(xx1, min=x1[i])
-#         yy1 = torch.clamp(yy1, min=y1[i])
-#         xx2 = torch.clamp(xx2, max=x2[i])
-#         yy2 = torch.clamp(yy2, max=y2[i])
-#         w.resize_as_(xx2)
-#         h.resize_as_(yy2)
-#         w = xx2 - xx1
-#         h = yy2 - yy1
-#         # check sizes of xx1 and xx2.. after each iteration
-#         w = torch.clamp(w, min=0.0)
-#         h = torch.clamp(h, min=0.0)
-#         inter = w*h
-#         # IoU = i / (area(a) + area(b) - i)
-#         rem_areas = torch.index_select(area, 0, idx)  # load remaining areas)
-#         union = (rem_areas - inter) + area[i]
-#         IoU = inter/union  # store result in iou
-#         # keep only elements with an IoU <= overlap
-#         idx = idx[IoU.le(overlap)]
-#     return keep, count
+
+def DIOUnms(bboxes, scores, threshold=0.2, top_k=200):  #bboxes维度为[N,4],scores维度为[N,],均为tensor
+    x1 = bboxes[:, 0]   #获得每一个框的左上角和右下角坐标
+    y1 = bboxes[:, 1]
+    x2 = bboxes[:, 2]
+    y2 = bboxes[:, 3]
+
+    center_x=x2-x1/2.0
+    center_y=y2-y1/2.0
+
+    areas=(x2-x1)*(y2-y1)  #获得每个框的面积
+    _,order=scores.sort(0,descending=True)  #按降序排列
+    order=order[:top_k]     #取前top_k个
+    keep=[]
+    count=0
+    while order.numel()>0:
+        if order.numel()==1:
+            break
+        count += 1
+        # print(order)
+        i=order[0]
+        keep.append(i)
+
+        xx1=x1[order[1:]].clamp(min=x1[i].item())   #[N-1,]
+        yy1=y1[order[1:]].clamp(min=y1[i].item())
+        xx2=x2[order[1:]].clamp(max=x2[i].item())
+        yy2=y2[order[1:]].clamp(max=y2[i].item())
+
+        w=(xx2-xx1).clamp(min=0)
+        h=(yy2-yy1).clamp(min=0)
+        inter=w*h                        #相交的面积  [N-1,]
+
+        overlap=inter/(areas[i]+areas[order[1:]]-inter)  #计算IOU   [N-1,]
+
+        xxx1=[]
+        xxx2=[]
+        yyy1=[]
+        yyy2=[]
+        for j in range(len(np.array(xx1))):
+            xxx1.append(min(x1[order[j+1]].item(), x1[i].item()))
+            xxx2.append(min(x2[order[j+1]].item(), x2[i].item()))
+            yyy1.append(max(y1[order[j+1]].item(), y1[i].item()))
+            yyy2.append(max(y2[order[j+1]].item(), y2[i].item()))
+
+        # print(xxx1)
+        # print(xxx2)
+        xxx1 = torch.Tensor(xxx1).clamp(min=0)
+        xxx2 = torch.Tensor(xxx2).clamp(min=0)
+        yyy1 = torch.Tensor(yyy1)
+        yyy2 = torch.Tensor(yyy2)
+
+
+
+        CDistance=torch.pow(xxx2-xxx1,2)+torch.pow(yyy2-yyy1,2)
+        # print('{}'.format(CDistance))
+        DDistance=torch.pow(center_x[i]-center_x[order[1:]],2)+torch.pow(center_y[i]-center_y[order[1:]],2)
+        # print('{}'.format(DDistance))
+        # print('CDistance:{},DDistance:{}'.format(CDistance,DDistance))
+        overlap=overlap-DDistance/CDistance
+
+        ids=(overlap<=threshold).nonzero().squeeze()   #返回一个包含输入 input 中非零元素索引的张量.输出张量中的每行包含 input 中非零元素的索引
+        if ids.numel()==0:
+            break
+        order=order[ids+1]           #ids中索引为0的值在order中实际为1，后面所有的元素也一样，新的order是经过了一轮计算后留下来的bbox的索引
+    return torch.tensor(keep,dtype=torch.long),count
