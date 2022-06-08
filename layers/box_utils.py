@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import torch
 import numpy as np
+import torchvision
 
 
 def point_form(boxes):
@@ -225,7 +226,21 @@ def nms(bboxes, scores, threshold=0.2, top_k=200):  #bboxes维度为[N,4],scores
         if ids.numel()==0:
             break
         order=order[ids+1]           #ids中索引为0的值在order中实际为1，后面所有的元素也一样，新的order是经过了一轮计算后留下来的bbox的索引
+    print(torch.tensor(keep,dtype=torch.long))
     return torch.tensor(keep,dtype=torch.long),count
+
+def PytorchNMS(bboxes, scores, threshold=0.2, top_k=200):  #bboxes维度为[N,4],scores维度为[N,],均为tensor
+
+    _,order=scores.sort(0,descending=True)  #按降序排列
+    order=order[:top_k]     #取前top_k个
+
+    newbox=bboxes[order,:]
+    newscore=scores[order]
+    kkeep=torchvision.ops.nms(boxes=newbox,scores=newscore,iou_threshold=threshold)
+    count=len(np.array(kkeep))
+    keep=order[kkeep]
+
+    return keep, count
 
 def DIOUnms(bboxes, scores, threshold=0.2, top_k=200):  #bboxes维度为[N,4],scores维度为[N,],均为tensor
     x1 = bboxes[:, 0]   #获得每一个框的左上角和右下角坐标
@@ -245,7 +260,6 @@ def DIOUnms(bboxes, scores, threshold=0.2, top_k=200):  #bboxes维度为[N,4],sc
         if order.numel()==1:
             break
         count += 1
-        # print(order)
         i=order[0]
         keep.append(i)
 
@@ -270,21 +284,15 @@ def DIOUnms(bboxes, scores, threshold=0.2, top_k=200):  #bboxes维度为[N,4],sc
             yyy1.append(max(y1[order[j+1]].item(), y1[i].item()))
             yyy2.append(max(y2[order[j+1]].item(), y2[i].item()))
 
-        # print(xxx1)
-        # print(xxx2)
         xxx1 = torch.Tensor(xxx1).clamp(min=0)
         xxx2 = torch.Tensor(xxx2).clamp(min=0)
         yyy1 = torch.Tensor(yyy1)
         yyy2 = torch.Tensor(yyy2)
 
+        Cdistance=torch.pow(xxx2-xxx1,2)+torch.pow(yyy2-yyy1,2)
+        Ddistance=torch.pow(center_x[i]-center_x[order[1:]],2)+torch.pow(center_y[i]-center_y[order[1:]],2)
 
-
-        CDistance=torch.pow(xxx2-xxx1,2)+torch.pow(yyy2-yyy1,2)
-        # print('{}'.format(CDistance))
-        DDistance=torch.pow(center_x[i]-center_x[order[1:]],2)+torch.pow(center_y[i]-center_y[order[1:]],2)
-        # print('{}'.format(DDistance))
-        # print('CDistance:{},DDistance:{}'.format(CDistance,DDistance))
-        overlap=overlap-DDistance/CDistance
+        overlap=overlap-Ddistance/Cdistance
 
         ids=(overlap<=threshold).nonzero().squeeze()   #返回一个包含输入 input 中非零元素索引的张量.输出张量中的每行包含 input 中非零元素的索引
         if ids.numel()==0:
