@@ -44,7 +44,7 @@ class Detect(Function):
             conf_scores = conf_preds[i].clone()
 
             for cl in range(1, self.num_classes):
-                c_mask = conf_scores[cl].gt(self.conf_thresh)
+                c_mask = conf_scores[cl].gt(self.conf_thresh)   #torch.gt(a,b)  比较a中元素大于（严格大于）b中对应元素，大于则为1，不大于则为0，b可以是张量或常数
                 scores = conf_scores[cl][c_mask]
                 if scores.dim() == 0:
                     continue

@@ -76,7 +76,7 @@ class SSD(nn.Module):
         for k in range(23):
             x = self.vgg[k](x)
 
-        s = self.L2Norm(x)
+        s = self.L2Norm(x)                 #conv4_3 输出的特征图的数值与后面几个分支的特征图数值相差较大，增加L2归一化有利于模型收敛
         sources.append(s)
 
         # 继续卷积到conv7，将特征添加到sources中
