@@ -98,9 +98,9 @@ def match(threshold, truths, priors, variances, labels, loc_t, conf_t, idx):
 
     # (Bipartite Matching)
     # [1,num_objects] best prior for each ground truth
-    best_prior_overlap, best_prior_idx = overlaps.max(1, keepdim=True)
+    best_prior_overlap, best_prior_idx = overlaps.max(1, keepdim=True) #求出GT与预测框中 IOU最大的框与IOU值
     # 将每一个真实框对应的最佳PriorBox的IoU设置为2
-    best_truth_overlap, best_truth_idx = overlaps.max(0, keepdim=True)
+    best_truth_overlap, best_truth_idx = overlaps.max(0, keepdim=True) #求出每个预测框跟 哪个个GT的IOU最大
     best_truth_idx.squeeze_(0)
     best_truth_overlap.squeeze_(0)
     best_prior_idx.squeeze_(1)

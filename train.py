@@ -17,7 +17,7 @@ import argparse
 from visdom import Visdom
 
 viz=Visdom()
-
+# python -m visdom.server
 def str2bool(v):
     return v.lower() in ("yes", "true", "t", "1")
 
@@ -31,13 +31,13 @@ parser.add_argument('--dataset_root', default='data/VOCdevkit',
                     help='Dataset root directory path')
 parser.add_argument('--basenet', default='vgg16_reducedfc.pth',
                     help='Pretrained base model')
-parser.add_argument('--batch_size', default=2, type=int,
+parser.add_argument('--batch_size', default=8, type=int,
                     help='Batch size for training')
 parser.add_argument('--resume', default=None, type=str,
                     help='Checkpoint state_dict file to resume training from')
 parser.add_argument('--start_iter', default=0, type=int,
                     help='Resume training at this iter')
-parser.add_argument('--num_workers', default=4, type=int,
+parser.add_argument('--num_workers', default=0, type=int,
                     help='Number of workers used in dataloading')
 parser.add_argument('--cuda', default=False, type=str2bool,
                     help='Use CUDA to train model')
@@ -141,12 +141,13 @@ def train():
     batch_iterator = iter(data_loader)
     for iteration in range(args.start_iter, cfg['max_iter']):
         if args.visdom and iteration != 0 and (iteration % epoch_size == 0):
+            epoch += 1
             update_vis_plot(epoch, loc_loss, conf_loss, epoch_plot, None,
                             'append', epoch_size)
             # reset epoch loss counters
             loc_loss = 0
             conf_loss = 0
-            epoch += 1
+            # epoch += 1
 
         if iteration in cfg['lr_steps']:
             step_index += 1
